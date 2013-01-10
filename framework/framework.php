@@ -9,6 +9,7 @@ class Framework{
 
 	private $request = array();
 	private $routes = array();
+	private $rule = null;
 
 	public function __construct($config){
 		
@@ -21,6 +22,9 @@ class Framework{
 
 		// Init load libraries
 		$this->loadLibraries();
+
+		// Init load application
+		$this->loadApplication();
 	}
 
 	private function setAppConfig($config){
@@ -35,6 +39,30 @@ class Framework{
 				require_once($this->framework_dir . '/libraries/' . $librarie);
 			}
 		}
+	}
+
+	private function loadApplication(){
+
+		$controllers_dir = scandir($this->app_dir . '/../controllers/');
+		$models_dir = scandir($this->app_dir . '/../models/');
+
+
+		foreach($controllers_dir as $i => $controller) {
+
+			if(pathinfo($controller, PATHINFO_EXTENSION) == 'php'){
+
+				require_once($this->app_dir . '/../controllers/' . $controller);
+			}
+		}
+
+		foreach($models_dir as $i => $model) {
+
+			if(pathinfo($model, PATHINFO_EXTENSION) == 'php'){
+
+				require_once($this->app_dir . '/../models/' . $model);
+			}
+		}
+
 	}
 
 
@@ -66,13 +94,55 @@ class Framework{
 
 	private function router(){
 		$this->routes = $this->app_config['routes'];
+
+		if(empty($this->request['controller']) && array_key_exists($this->request['controller'], $this->routes)){
+			// OK
+			$this->rule = '';
+		}
+		elseif($this->request['action'] == 'index' && array_key_exists($this->request['controller'], $this->routes)) {
+			// OK
+			$this->rule = $this->request['controller'];
+		}
+		elseif(array_key_exists($this->request['controller'] . '/' . $this->request['action'], $this->routes)) {
+			// OK
+			$this->rule = $this->request['controller'] . '/' . $this->request['action'];
+		}
+		else{
+			exit('No route available');
+		}
 	}
 
 	private function dispatcher(){
 
+		$rule = $this->rule;
+		$route = $this->routes[$rule];
+		$route = explode('/', $route);
+
+
+		// Define controller / action
+		$controller = $route[0] . 'Controller';
+		$action = 'action'. ucfirst($route[1]);
+		
+		if(class_exists($controller)){
+			$controller = new $controller;
+			$controller->setControllerName($route[0]);
+			$controller->setViewDirectory($this->app_dir . '/../views/');
+
+			if(method_exists($controller, $action)){
+				$controller->$action();
+			}
+			else{
+				exit('No action available');
+			}
+			
+		}
+		else{
+			exit('No controller available');
+		}
+
 	}
 
-	public function run(){
+	public function run(){		
 		$this->request();
 		$this->router();
 		$this->dispatcher();
